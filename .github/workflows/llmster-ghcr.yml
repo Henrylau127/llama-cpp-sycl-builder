@@ -89,6 +89,8 @@ jobs:
             ${{ steps.img.outputs.image }}:latest
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Record last built version
         if: steps.decide.outputs.build == 'true'
