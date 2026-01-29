@@ -18,7 +18,7 @@ if ! command -v lms >/dev/null 2>&1; then
 fi
 
 lms daemon up
-lms server start
+lms server start --bind 0.0.0.0 --port 1234
 
 # Keep PID 1 alive without triggering “wake up” behavior repeatedly
 while true; do sleep 3600; done
