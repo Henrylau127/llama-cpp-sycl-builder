@@ -11,18 +11,14 @@ _term() {
 }
 trap _term TERM INT
 
+# Install into the mounted volume if missing
 if ! command -v lms >/dev/null 2>&1; then
-  echo "lms not found; installing..."
   LMS_NO_MODIFY_PATH=1 sh -c "curl -fsSL https://lmstudio.ai/install.sh | sh"
   export PATH="/home/lm/.lmstudio/bin:${PATH}"
 fi
 
-command -v lms >/dev/null 2>&1 || { echo "lms still not found after install"; exit 127; }
-
 lms daemon up
 lms server start
 
-while true; do
-  lms server status >/dev/null 2>&1 || exit 1
-  sleep 2
-done
+# Keep PID 1 alive without triggering “wake up” behavior repeatedly
+while true; do sleep 3600; done
