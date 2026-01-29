@@ -1,0 +1,105 @@
+name: Build & publish llmster image (GHCR)
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Weekly: Mondays 03:00 UTC (adjust as you like)
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  INSTALL_SH_URL: https://lmstudio.ai/install.sh
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout builder repo (for state file)
+        uses: actions/checkout@v4
+
+      - name: Compute lowercase GHCR image name
+        id: img
+        run: |
+          echo "image=${{ env.REGISTRY }}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Get latest llmster installer version
+        id: upstream
+        run: |
+          set -euo pipefail
+          VER=$(
+            curl -fsSL "${{ env.INSTALL_SH_URL }}" \
+              | sed -n 's/^APP_VERSION="\([^"]*\)".*$/\1/p' \
+              | head -n 1
+          )
+          if [ -z "$VER" ]; then
+            echo "Failed to parse APP_VERSION from install.sh"
+            exit 1
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: Read last built version
+        id: last
+        run: |
+          if [ -f .last_llmster_version ]; then
+            echo "version=$(cat .last_llmster_version)" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decide whether to build
+        id: decide
+        run: |
+          if [ "${{ steps.upstream.outputs.version }}" = "${{ steps.last.outputs.version }}" ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop early (no new version)
+        if: steps.decide.outputs.build != 'true'
+        run: echo "No new llmster version; skipping."
+
+      - name: Log in to GHCR
+        if: steps.decide.outputs.build == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        if: steps.decide.outputs.build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push (linux/amd64, linux/arm64)
+        if: steps.decide.outputs.build == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./llmster
+          file: ./llmster/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.img.outputs.image }}:${{ steps.upstream.outputs.version }}
+            ${{ steps.img.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Record last built version
+        if: steps.decide.outputs.build == 'true'
+        run: |
+          echo "${{ steps.upstream.outputs.version }}" > .last_llmster_version
+
+      - name: Commit state file
+        if: steps.decide.outputs.build == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .last_llmster_version
+          git commit -m "ci: built llmster ${{ steps.upstream.outputs.version }}" || exit 0
+          git push
