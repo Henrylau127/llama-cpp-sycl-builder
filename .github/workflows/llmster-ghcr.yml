@@ -25,7 +25,8 @@ jobs:
       - name: Compute lowercase GHCR image name
         id: img
         run: |
-          echo "image=${{ env.REGISTRY }}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          echo "image=ghcr.io/${OWNER,,}/llmster" >> "$GITHUB_OUTPUT"
 
       - name: Get latest llmster installer version
         id: upstream
