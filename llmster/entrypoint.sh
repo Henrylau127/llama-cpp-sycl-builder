@@ -1,17 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure lms is discoverable in non-interactive shells
+export HOME=/home/lm
 export PATH="/home/lm/.lmstudio/bin:${PATH}"
-
-# If LM Studio home was redirected by ~/.lmstudio-home-pointer, honor it. [attached_file:1]
-if [ -f /home/lm/.lmstudio-home-pointer ]; then
-  LMS_HOME="$(cat /home/lm/.lmstudio-home-pointer)"
-  export PATH="${LMS_HOME}/bin:${PATH}"
-fi
-
-# Hard fail early with a clearer error
-command -v lms >/dev/null 2>&1 || { echo "lms not found on PATH: $PATH"; exit 127; }
 
 _term() {
   lms server stop >/dev/null 2>&1 || true
@@ -19,6 +10,14 @@ _term() {
   exit 0
 }
 trap _term TERM INT
+
+if ! command -v lms >/dev/null 2>&1; then
+  echo "lms not found; installing..."
+  LMS_NO_MODIFY_PATH=1 sh -c "curl -fsSL https://lmstudio.ai/install.sh | sh"
+  export PATH="/home/lm/.lmstudio/bin:${PATH}"
+fi
+
+command -v lms >/dev/null 2>&1 || { echo "lms still not found after install"; exit 127; }
 
 lms daemon up
 lms server start
