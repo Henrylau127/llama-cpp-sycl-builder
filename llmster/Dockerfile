@@ -12,7 +12,7 @@ USER lm
 ENV HOME=/home/lm
 
 # Install llmster/lms (headless installer) [page:1]
-RUN curl -fsSL https://lmstudio.ai/install.sh | bash -- --no-modify-path
+RUN LMS_NO_MODIFY_PATH=1 sh -c "curl -fsSL https://lmstudio.ai/install.sh | sh"
 
 # Ensure lms is always available without profile edits [page:1]
 ENV PATH="${HOME}/.lmstudio/bin:${PATH}"
